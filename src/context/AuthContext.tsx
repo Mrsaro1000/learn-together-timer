@@ -48,9 +48,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const signIn = async (username: string, password: string) => {
-    // Convert username to a fake email format for Supabase
-    const email = `${username.toLowerCase()}@studyflow.local`;
-    const response = await supabase.auth.signInWithPassword({ email, password });
+    // Use the username directly as the email for Supabase
+    const response = await supabase.auth.signInWithPassword({ 
+      email: username, 
+      password 
+    });
+    
     return {
       error: response.error,
       data: { session: response.data.session }
@@ -58,17 +61,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signUp = async (username: string, password: string) => {
-    // Convert username to a fake email format for Supabase
-    const email = `${username.toLowerCase()}@studyflow.local`;
+    // Sign up with username as the email
     const response = await supabase.auth.signUp({ 
-      email, 
+      email: username, 
       password,
       options: {
         data: {
-          name: username
+          username
         }
       }
     });
+    
     return {
       error: response.error,
       data: { 

@@ -3,20 +3,23 @@ import React, { useEffect } from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import Navbar from "./Navbar";
 import MobileNav from "./MobileNav";
+import { useAuth } from "@/context/AuthContext";
 
 const AppLayout: React.FC = () => {
   const location = useLocation();
-  
-  // Check if user is logged in
-  const isLoggedIn = localStorage.getItem("studyflow-user") !== null;
+  const { user, loading } = useAuth();
   
   // Scroll to top on route change
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [location.pathname]);
 
+  if (loading) {
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
+  }
+
   // Redirect to login if not logged in
-  if (!isLoggedIn) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 

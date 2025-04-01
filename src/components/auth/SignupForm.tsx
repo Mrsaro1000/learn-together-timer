@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 const SignupForm = () => {
   const [name, setName] = useState("");
@@ -12,18 +13,41 @@ const SignupForm = () => {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { signUp } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters");
+      return;
+    }
+    
     setIsLoading(true);
     
-    // Simulate signup - would connect to backend in real app
-    setTimeout(() => {
-      localStorage.setItem("studyflow-user", JSON.stringify({ email, name }));
-      toast.success("Account created successfully!");
+    try {
+      const { error, data } = await signUp(email, password);
+      
+      if (error) {
+        toast.error(error.message);
+      } else {
+        toast.success("Account created successfully!");
+        // Store name in session metadata
+        if (data.user) {
+          localStorage.setItem("studyflow-user", JSON.stringify({ 
+            email, 
+            name,
+            id: data.user.id 
+          }));
+        }
+        navigate("/goals");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error("An unexpected error occurred");
+    } finally {
       setIsLoading(false);
-      navigate("/goals");
-    }, 1000);
+    }
   };
 
   return (
@@ -69,7 +93,7 @@ const SignupForm = () => {
               required
               className="w-full"
             />
-            <p className="text-xs text-muted-foreground">Must be at least 8 characters</p>
+            <p className="text-xs text-muted-foreground">Must be at least 6 characters</p>
           </div>
           <Button type="submit" className="w-full bg-studyflow-primary hover:bg-studyflow-accent" disabled={isLoading}>
             {isLoading ? "Creating account..." : "Create account"}

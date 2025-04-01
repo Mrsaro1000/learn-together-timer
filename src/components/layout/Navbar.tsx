@@ -13,31 +13,31 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Clock, BarChart2, Users, Settings, LogOut } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/context/AuthContext";
 
 const Navbar = () => {
-  const [user, setUser] = useState<{ name?: string; email?: string } | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
-  useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem("studyflow-user") || "null");
-    setUser(userData);
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.removeItem("studyflow-user");
+  const handleLogout = async () => {
+    await signOut();
     toast.success("Logged out successfully");
-    navigate("/");
   };
 
   if (!user) return null;
 
-  const getInitials = (name: string = "User") => {
+  const getInitials = () => {
+    const name = user.user_metadata?.name || "User";
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
       .toUpperCase();
+  };
+
+  const getUserName = () => {
+    return user.user_metadata?.name || "User";
   };
 
   return (
@@ -113,7 +113,7 @@ const Navbar = () => {
               <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-studyflow-primary">
-                    {getInitials(user.name)}
+                    {getInitials()}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -121,10 +121,7 @@ const Navbar = () => {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">{user.name}</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    {user.email}
-                  </p>
+                  <p className="text-sm font-medium leading-none">{getUserName()}</p>
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />

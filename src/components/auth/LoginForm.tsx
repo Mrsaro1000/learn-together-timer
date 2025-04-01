@@ -8,7 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 const LoginForm = () => {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ const LoginForm = () => {
     setIsLoading(true);
     
     try {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(username, password);
       if (error) {
         toast.error(error.message);
       } else {
@@ -43,13 +43,13 @@ const LoginForm = () => {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">Email</label>
+            <label htmlFor="username" className="text-sm font-medium">Username</label>
             <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              id="username"
+              type="text"
+              placeholder="your_username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
               className="w-full"
             />
@@ -75,18 +75,6 @@ const LoginForm = () => {
         </form>
       </CardContent>
       <CardFooter className="flex flex-col space-y-4">
-        <div className="relative w-full">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t"></div>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 w-full">
-          <Button variant="outline" className="w-full">Google</Button>
-          <Button variant="outline" className="w-full">Github</Button>
-        </div>
         <div className="text-center text-sm">
           Don't have an account?{" "}
           <a 

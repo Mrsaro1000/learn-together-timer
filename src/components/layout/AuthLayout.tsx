@@ -1,15 +1,14 @@
 
 import React from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
+import { useAuth } from "@/context/AuthContext";
 
 const AuthLayout: React.FC = () => {
   const location = useLocation();
+  const { user, loading } = useAuth();
   
   // Check if user is already logged in
-  const isLoggedIn = localStorage.getItem("studyflow-user") !== null;
-  
-  // Redirect to dashboard if already logged in
-  if (isLoggedIn && ["/", "/login", "/signup"].includes(location.pathname)) {
+  if (!loading && user && ["/", "/login", "/signup"].includes(location.pathname)) {
     return <Navigate to="/dashboard" replace />;
   }
 

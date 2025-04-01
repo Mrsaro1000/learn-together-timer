@@ -8,8 +8,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 
 const SignupForm = () => {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -26,17 +25,16 @@ const SignupForm = () => {
     setIsLoading(true);
     
     try {
-      const { error, data } = await signUp(email, password);
+      const { error, data } = await signUp(username, password);
       
       if (error) {
         toast.error(error.message);
       } else {
         toast.success("Account created successfully!");
-        // Store name in session metadata
+        // Store username in local storage
         if (data.user) {
           localStorage.setItem("studyflow-user", JSON.stringify({ 
-            email, 
-            name,
+            name: username,
             id: data.user.id 
           }));
         }
@@ -59,25 +57,13 @@ const SignupForm = () => {
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="name" className="text-sm font-medium">Name</label>
+            <label htmlFor="username" className="text-sm font-medium">Username</label>
             <Input
-              id="name"
+              id="username"
               type="text"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              className="w-full"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">Email</label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              placeholder="your_username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               required
               className="w-full"
             />
@@ -101,18 +87,6 @@ const SignupForm = () => {
         </form>
       </CardContent>
       <CardFooter className="flex flex-col space-y-4">
-        <div className="relative w-full">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t"></div>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-4 w-full">
-          <Button variant="outline" className="w-full">Google</Button>
-          <Button variant="outline" className="w-full">Github</Button>
-        </div>
         <div className="text-center text-sm">
           Already have an account?{" "}
           <a 

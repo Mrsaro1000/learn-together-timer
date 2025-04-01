@@ -7,11 +7,11 @@ import { useNavigate } from "react-router-dom";
 type AuthContextType = {
   session: Session | null;
   user: User | null;
-  signIn: (email: string, password: string) => Promise<{
+  signIn: (username: string, password: string) => Promise<{
     error: AuthError | null;
     data: { session: Session | null };
   }>;
-  signUp: (email: string, password: string) => Promise<{
+  signUp: (username: string, password: string) => Promise<{
     error: AuthError | null;
     data: { user: User | null; session: Session | null };
   }>;
@@ -47,7 +47,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (username: string, password: string) => {
+    // Convert username to a fake email format for Supabase
+    const email = `${username.toLowerCase()}@studyflow.local`;
     const response = await supabase.auth.signInWithPassword({ email, password });
     return {
       error: response.error,
@@ -55,8 +57,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   };
 
-  const signUp = async (email: string, password: string) => {
-    const response = await supabase.auth.signUp({ email, password });
+  const signUp = async (username: string, password: string) => {
+    // Convert username to a fake email format for Supabase
+    const email = `${username.toLowerCase()}@studyflow.local`;
+    const response = await supabase.auth.signUp({ 
+      email, 
+      password,
+      options: {
+        data: {
+          name: username
+        }
+      }
+    });
     return {
       error: response.error,
       data: { 

@@ -30,7 +30,7 @@ const StudyTimer = () => {
     const fetchUserPreferences = async () => {
       try {
         const preferences = await getUserPreferences();
-        if (preferences?.focus_time) {
+        if (preferences && preferences.focus_time) {
           const focusTimeInSeconds = preferences.focus_time * 60;
           setTimeLeft(focusTimeInSeconds);
           setInitialTime(focusTimeInSeconds);
@@ -106,7 +106,7 @@ const StudyTimer = () => {
     
     if (value === "focus") {
       getUserPreferences().then(prefs => {
-        if (prefs?.focus_time) {
+        if (prefs && prefs.focus_time) {
           newTime = prefs.focus_time * 60;
           setTimeLeft(newTime);
           setInitialTime(newTime);

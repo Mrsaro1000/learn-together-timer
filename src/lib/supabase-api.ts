@@ -1,5 +1,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
+import type { Database } from "@/integrations/supabase/types";
 
 // Study Sessions API
 export async function saveStudySession(sessionData: {
@@ -15,7 +16,7 @@ export async function saveStudySession(sessionData: {
   }
   
   const { data, error } = await supabase
-    .from("study_sessions")
+    .from('study_sessions')
     .insert({
       user_id: user.data.user.id,
       ...sessionData
@@ -33,7 +34,7 @@ export async function saveStudySession(sessionData: {
 
 export async function getUserSessions() {
   const { data, error } = await supabase
-    .from("study_sessions")
+    .from('study_sessions')
     .select("*")
     .order("created_at", { ascending: false });
   
@@ -57,7 +58,7 @@ export async function saveUserPreferences(preferences: {
   }
   
   const { data: existingPrefs } = await supabase
-    .from("user_preferences")
+    .from('user_preferences')
     .select("*")
     .eq("user_id", user.data.user.id)
     .maybeSingle();
@@ -65,7 +66,7 @@ export async function saveUserPreferences(preferences: {
   if (existingPrefs) {
     // Update existing preferences
     const { data, error } = await supabase
-      .from("user_preferences")
+      .from('user_preferences')
       .update({
         ...preferences,
         updated_at: new Date().toISOString()
@@ -83,7 +84,7 @@ export async function saveUserPreferences(preferences: {
   } else {
     // Insert new preferences
     const { data, error } = await supabase
-      .from("user_preferences")
+      .from('user_preferences')
       .insert({
         user_id: user.data.user.id,
         ...preferences
@@ -108,7 +109,7 @@ export async function getUserPreferences() {
   }
   
   const { data, error } = await supabase
-    .from("user_preferences")
+    .from('user_preferences')
     .select("*")
     .eq("user_id", user.data.user.id)
     .maybeSingle();

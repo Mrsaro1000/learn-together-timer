@@ -9,7 +9,7 @@ const StudyRoomDetailPage = () => {
     return <div>Room ID not provided</div>;
   }
   
-  return <StudyRoomDetail />;
+  return <StudyRoomDetail roomId={roomId} />;
 };
 
 export default StudyRoomDetailPage;

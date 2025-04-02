@@ -17,6 +17,11 @@ type PeerConnection = {
   stream?: MediaStream;
 };
 
+// Generate a unique peer ID helper function
+const generatePeerId = () => {
+  return Math.random().toString(36).substring(2, 15);
+};
+
 const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
   roomId,
   username,
@@ -302,11 +307,6 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
       });
       setIsVideoEnabled(!isVideoEnabled);
     }
-  };
-
-  // Generate a unique peer ID
-  const generatePeerId = () => {
-    return Math.random().toString(36).substring(2, 15);
   };
 
   // Cleanup on unmount

@@ -2,7 +2,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Video, VideoOff, Phone, PhoneOff } from "lucide-react";
-import Peer from "simple-peer";
 import { toast } from "sonner";
 
 interface VideoCallComponentProps {
@@ -13,7 +12,7 @@ interface VideoCallComponentProps {
 
 type PeerConnection = {
   peerId: string;
-  peer: Peer.Instance;
+  connection: RTCPeerConnection;
   username: string;
   stream?: MediaStream;
 };
@@ -31,6 +30,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const peersRef = useRef<PeerConnection[]>([]);
   const roomPrefix = isPrivate ? `private-${roomId}` : `public-${roomId}`;
+  const myPeerId = useRef<string>(generatePeerId());
 
   // Initialize local stream
   const initializeMedia = async () => {
@@ -64,76 +64,222 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
     const joinMessage = {
       type: "join-call",
       roomId: roomPrefix,
-      peerId: generatePeerId(),
+      peerId: myPeerId.current,
       username,
     };
     
-    // In a real app, we would send this through a signaling server
     // For demo purposes, we'll use localStorage as a mock signaling mechanism
     const existingSignals = JSON.parse(localStorage.getItem(`studyflow-signals-${roomPrefix}`) || "[]");
     localStorage.setItem(`studyflow-signals-${roomPrefix}`, JSON.stringify([...existingSignals, joinMessage]));
     
     // Check if there are other peers to connect to
     const otherPeers = existingSignals.filter(
-      (signal: any) => signal.type === "join-call" && signal.peerId !== joinMessage.peerId
+      (signal: any) => signal.type === "join-call" && signal.peerId !== myPeerId.current
     );
     
     // Connect to other peers
     otherPeers.forEach((peerData: any) => {
-      const peer = createPeer(peerData.peerId, joinMessage.peerId, stream);
-      
-      peersRef.current.push({
-        peerId: peerData.peerId,
-        peer,
-        username: peerData.username,
-      });
+      createPeerConnection(peerData.peerId, true, stream, peerData.username);
     });
     
-    setPeers(peersRef.current);
-    
-    // Simulate new peer joins (for demo)
-    window.addEventListener("storage", (e) => {
-      if (e.key === `studyflow-signals-${roomPrefix}`) {
-        const signals = JSON.parse(e.newValue || "[]");
-        const newSignals = signals.filter(
-          (signal: any) => !existingSignals.some((s: any) => s.peerId === signal.peerId)
-        );
-        
-        newSignals.forEach((signal: any) => {
-          if (signal.type === "join-call" && signal.peerId !== joinMessage.peerId) {
-            // Add new peer
-            const peer = createPeer(signal.peerId, joinMessage.peerId, stream);
-            peersRef.current.push({
-              peerId: signal.peerId,
-              peer,
-              username: signal.username,
-            });
-            setPeers([...peersRef.current]);
-          }
-        });
+    // Listen for new signals
+    window.addEventListener("storage", handleStorageChange);
+  };
+
+  // Handle localStorage storage events (for signaling)
+  const handleStorageChange = (e: StorageEvent) => {
+    if (!e.key || !e.key.startsWith(`studyflow-signals-${roomPrefix}`)) return;
+    if (!localStream) return;
+
+    const signals = JSON.parse(e.newValue || "[]");
+    signals.forEach((signal: any) => {
+      if (signal.peerId === myPeerId.current) return; // Skip our own signals
+
+      // Handle new peer joining
+      if (signal.type === "join-call" && !peersRef.current.some(p => p.peerId === signal.peerId)) {
+        createPeerConnection(signal.peerId, false, localStream, signal.username);
+      }
+      
+      // Handle offers
+      else if (signal.type === "offer" && signal.targetPeerId === myPeerId.current) {
+        handleIncomingOffer(signal.callerId, signal.sdp, signal.username);
+      }
+      
+      // Handle answers
+      else if (signal.type === "answer" && signal.targetPeerId === myPeerId.current) {
+        handleAnswer(signal.callerId, signal.sdp);
+      }
+      
+      // Handle ICE candidates
+      else if (signal.type === "ice-candidate" && signal.targetPeerId === myPeerId.current) {
+        handleNewICECandidate(signal.callerId, signal.candidate);
       }
     });
   };
 
+  // Create a new peer connection
+  const createPeerConnection = (peerId: string, isInitiator: boolean, stream: MediaStream, peerUsername: string) => {
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.stunprotocol.org:3478" },
+        { urls: "stun:stun.l.google.com:19302" },
+      ],
+    });
+
+    // Add all tracks from our stream to the connection
+    stream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, stream);
+    });
+
+    // Handle incoming tracks
+    peerConnection.ontrack = (event) => {
+      const [remoteStream] = event.streams;
+      const peerIndex = peersRef.current.findIndex((p) => p.peerId === peerId);
+      
+      if (peerIndex !== -1) {
+        const updatedPeers = [...peersRef.current];
+        updatedPeers[peerIndex].stream = remoteStream;
+        peersRef.current = updatedPeers;
+        setPeers([...updatedPeers]);
+      }
+    };
+
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        // Send the ICE candidate to the remote peer
+        const iceMessage = {
+          type: "ice-candidate",
+          callerId: myPeerId.current,
+          targetPeerId: peerId,
+          candidate: event.candidate,
+        };
+        
+        sendSignal(iceMessage);
+      }
+    };
+
+    // Create and store the peer
+    const newPeer = {
+      peerId,
+      connection: peerConnection,
+      username: peerUsername,
+    };
+    
+    peersRef.current = [...peersRef.current, newPeer];
+    setPeers([...peersRef.current]);
+
+    // If we're the initiator, create and send the offer
+    if (isInitiator) {
+      peerConnection.createOffer()
+        .then(offer => peerConnection.setLocalDescription(offer))
+        .then(() => {
+          const offerMessage = {
+            type: "offer",
+            callerId: myPeerId.current,
+            targetPeerId: peerId,
+            sdp: peerConnection.localDescription,
+            username,
+          };
+          
+          sendSignal(offerMessage);
+        })
+        .catch(error => {
+          console.error("Error creating offer:", error);
+          toast.error("Error connecting to peer");
+        });
+    }
+
+    return peerConnection;
+  };
+
+  // Handle incoming offer
+  const handleIncomingOffer = (callerId: string, sdp: RTCSessionDescriptionInit, peerUsername: string) => {
+    if (!localStream) return;
+
+    // Find existing peer or create a new one
+    let peerConnection = peersRef.current.find(p => p.peerId === callerId)?.connection;
+    
+    if (!peerConnection) {
+      peerConnection = createPeerConnection(callerId, false, localStream, peerUsername).connection;
+    }
+
+    // Set the remote description from the offer
+    peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
+      .then(() => peerConnection.createAnswer())
+      .then(answer => peerConnection.setLocalDescription(answer))
+      .then(() => {
+        // Send the answer back
+        const answerMessage = {
+          type: "answer",
+          callerId: myPeerId.current,
+          targetPeerId: callerId,
+          sdp: peerConnection.localDescription,
+        };
+        
+        sendSignal(answerMessage);
+      })
+      .catch(error => {
+        console.error("Error handling offer:", error);
+        toast.error("Error connecting to peer");
+      });
+  };
+
+  // Handle incoming answer
+  const handleAnswer = (callerId: string, sdp: RTCSessionDescriptionInit) => {
+    const peer = peersRef.current.find(p => p.peerId === callerId);
+    
+    if (peer && peer.connection) {
+      peer.connection.setRemoteDescription(new RTCSessionDescription(sdp))
+        .catch(error => {
+          console.error("Error setting remote description:", error);
+        });
+    }
+  };
+
+  // Handle new ICE candidate
+  const handleNewICECandidate = (callerId: string, candidate: RTCIceCandidateInit) => {
+    const peer = peersRef.current.find(p => p.peerId === callerId);
+    
+    if (peer && peer.connection) {
+      peer.connection.addIceCandidate(new RTCIceCandidate(candidate))
+        .catch(error => {
+          console.error("Error adding ICE candidate:", error);
+        });
+    }
+  };
+
+  // Send a signal through localStorage (mock signaling server)
+  const sendSignal = (signal: any) => {
+    const signals = JSON.parse(localStorage.getItem(`studyflow-signals-${roomPrefix}`) || "[]");
+    localStorage.setItem(`studyflow-signals-${roomPrefix}`, JSON.stringify([...signals, signal]));
+  };
+
   // Leave the call
   const leaveCall = () => {
+    // Remove event listener
+    window.removeEventListener("storage", handleStorageChange);
+    
+    // Stop all media tracks
     if (localStream) {
       localStream.getTracks().forEach((track) => track.stop());
     }
     
+    // Close all peer connections
     peers.forEach((peerConnection) => {
-      peerConnection.peer.destroy();
+      peerConnection.connection.close();
     });
     
+    // Clear state
     setPeers([]);
     peersRef.current = [];
     setLocalStream(null);
     setIsCallActive(false);
     
-    // Remove our signal
+    // Remove our signals
     const existingSignals = JSON.parse(localStorage.getItem(`studyflow-signals-${roomPrefix}`) || "[]");
     const updatedSignals = existingSignals.filter(
-      (signal: any) => signal.peerId !== "our-peer-id" // Replace with actual peer ID
+      (signal: any) => signal.peerId !== myPeerId.current
     );
     localStorage.setItem(`studyflow-signals-${roomPrefix}`, JSON.stringify(updatedSignals));
   };
@@ -163,50 +309,10 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
     return Math.random().toString(36).substring(2, 15);
   };
 
-  // Create a peer connection
-  const createPeer = (targetPeerId: string, callerId: string, stream: MediaStream) => {
-    const peer = new Peer({
-      initiator: true,
-      trickle: false,
-      stream,
-    });
-    
-    peer.on("signal", (signal) => {
-      // In a real app, we would send this through a signaling server
-      const signalData = {
-        type: "offer",
-        callerId,
-        targetPeerId,
-        signal,
-      };
-      
-      // For demo, use localStorage as a mock signaling mechanism
-      const existingSignals = JSON.parse(localStorage.getItem(`studyflow-signals-${roomPrefix}`) || "[]");
-      localStorage.setItem(`studyflow-signals-${roomPrefix}`, JSON.stringify([...existingSignals, signalData]));
-    });
-    
-    peer.on("stream", (peerStream) => {
-      const peerIndex = peersRef.current.findIndex((p) => p.peerId === targetPeerId);
-      if (peerIndex !== -1) {
-        const updatedPeers = [...peersRef.current];
-        updatedPeers[peerIndex].stream = peerStream;
-        peersRef.current = updatedPeers;
-        setPeers(updatedPeers);
-      }
-    });
-    
-    return peer;
-  };
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach((track) => track.stop());
-      }
-      peers.forEach((peerConnection) => {
-        peerConnection.peer.destroy();
-      });
+      leaveCall();
     };
   }, []);
 
@@ -218,8 +324,8 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
             <video
               ref={localVideoRef}
               autoPlay
-              muted
               playsInline
+              muted
               className="w-full h-full object-cover"
             />
             <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
@@ -231,12 +337,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
         {peers.map((peer) => (
           <div key={peer.peerId} className="relative rounded-lg overflow-hidden bg-gray-800 aspect-video">
             {peer.stream ? (
-              <video
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover"
-                srcObject={peer.stream}
-              />
+              <PeerVideo stream={peer.stream} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-white">
                 Connecting...
@@ -295,6 +396,30 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
         )}
       </div>
     </div>
+  );
+};
+
+// Helper component to handle srcObject correctly
+interface PeerVideoProps {
+  stream: MediaStream;
+}
+
+const PeerVideo: React.FC<PeerVideoProps> = ({ stream }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+  
+  return (
+    <video
+      ref={videoRef}
+      autoPlay
+      playsInline
+      className="w-full h-full object-cover"
+    />
   );
 };
 

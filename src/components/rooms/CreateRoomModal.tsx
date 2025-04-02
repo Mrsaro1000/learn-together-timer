@@ -31,7 +31,7 @@ const CreateRoomModal = () => {
     }
 
     // Get current user data (or create anonymous user)
-    const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "user-" + Date.now()}');
+    const userData = JSON.parse(localStorage.getItem("studyflow-user") || "{}");
     
     // If no user exists, create an anonymous one
     if (!userData.id) {

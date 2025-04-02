@@ -10,7 +10,18 @@ const Stats = () => {
   useEffect(() => {
     // Get session data from local storage
     const sessionData = JSON.parse(localStorage.getItem("studyflow-sessions") || "[]");
-    setSessions(sessionData);
+    
+    // Convert string dates to Date objects and ensure all required properties exist
+    const processedSessions = sessionData.map((session: any) => ({
+      ...session,
+      date: new Date(session.date),
+      duration: session.duration || 0,
+      mode: session.mode || "focus",
+      roomId: session.roomId || null,
+      roomName: session.roomName || "Study Room"
+    }));
+    
+    setSessions(processedSessions);
   }, []);
 
   // Demo leaderboard data
@@ -25,7 +36,7 @@ const Stats = () => {
     {
       id: "current",
       name: "You",
-      minutesStudied: 360,
+      minutesStudied: calculateTotalMinutesStudied(sessions),
       streak: 3,
       rank: 2,
     },
@@ -52,6 +63,12 @@ const Stats = () => {
     },
   ];
 
+  // Calculate total minutes studied from seconds
+  function calculateTotalMinutesStudied(sessions: any[]) {
+    const totalSeconds = sessions.reduce((total, session) => total + session.duration, 0);
+    return Math.floor(totalSeconds / 60);
+  }
+
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Study Statistics</h1>
@@ -76,7 +93,7 @@ const Stats = () => {
                 sessions={sessions}
                 title="Monthly Study Time"
                 description="Your study time for the past month"
-                period="week" // Simplified for demo
+                period="month"
               />
             </TabsContent>
           </Tabs>

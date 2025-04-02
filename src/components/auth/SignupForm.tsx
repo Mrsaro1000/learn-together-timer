@@ -38,7 +38,7 @@ const SignupForm = () => {
             id: data.user.id 
           }));
         }
-        navigate("/goals");
+        navigate("/dashboard");
       }
     } catch (error) {
       console.error(error);

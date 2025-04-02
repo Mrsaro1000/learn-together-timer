@@ -6,16 +6,17 @@ import RecentActivity from "@/components/dashboard/RecentActivity";
 import QuickActions from "@/components/dashboard/QuickActions";
 
 const Dashboard = () => {
-  const [user, setUser] = useState<any>(null);
   const [todayMinutes, setTodayMinutes] = useState(0);
   const [activities, setActivities] = useState<any[]>([]);
 
   useEffect(() => {
-    // Get user data
-    const userData = JSON.parse(localStorage.getItem("studyflow-user") || "{}");
-    setUser(userData);
+    // Default user data
+    const userData = {
+      name: "Student",
+      dailyGoal: 120
+    };
 
-    // Get session data
+    // Get session data from localStorage if available
     const sessionData = JSON.parse(localStorage.getItem("studyflow-sessions") || "[]");
     
     // Calculate today's minutes
@@ -51,14 +52,6 @@ const Dashboard = () => {
     setActivities(recentActivities);
   }, []);
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <span className="text-lg">Loading...</span>
-      </div>
-    );
-  }
-
   return (
     <div className="container mx-auto px-4 py-8">
       <h1 className="text-2xl font-bold mb-6">Your Dashboard</h1>
@@ -73,7 +66,7 @@ const Dashboard = () => {
         />
         <StatsCard
           title="Daily Goal"
-          value={`${user.dailyGoal || 120} min`}
+          value="120 min"
           description="Your target study time"
           icon="goal"
         />
@@ -94,7 +87,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="col-span-1">
           <StudyProgress
-            targetMinutes={user.dailyGoal || 120}
+            targetMinutes={120}
             currentMinutes={todayMinutes}
           />
         </div>

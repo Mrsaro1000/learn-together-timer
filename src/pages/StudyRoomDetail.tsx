@@ -1,6 +1,6 @@
 
 import { useParams } from "react-router-dom";
-import StudyRoomDetail from "@/components/rooms/StudyRoomDetail";
+import StudyRoomDetailComponent from "@/components/rooms/StudyRoomDetail";
 
 const StudyRoomDetailPage = () => {
   const { roomId } = useParams();
@@ -9,7 +9,7 @@ const StudyRoomDetailPage = () => {
     return <div>Room ID not provided</div>;
   }
   
-  return <StudyRoomDetail roomId={roomId} />;
+  return <StudyRoomDetailComponent roomId={roomId} />;
 };
 
 export default StudyRoomDetailPage;

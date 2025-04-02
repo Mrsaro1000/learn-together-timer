@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Clock, Users, ArrowLeft, Send, Settings } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import TaskList from "./TaskList";
 import VideoCallComponent from "./VideoCallComponent";
@@ -26,8 +26,11 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-const StudyRoomDetail = () => {
-  const { roomId } = useParams();
+interface StudyRoomDetailProps {
+  roomId: string;
+}
+
+const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
   const navigate = useNavigate();
   const [room, setRoom] = useState<any>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -307,7 +310,7 @@ const StudyRoomDetail = () => {
           </CardHeader>
           <CardContent>
             <VideoCallComponent 
-              roomId={roomId || ""} 
+              roomId={roomId} 
               username={JSON.parse(localStorage.getItem("studyflow-user") || '{"name": "Anonymous"}').name || "Anonymous"}
               isPrivate={room.isPrivate}
             />

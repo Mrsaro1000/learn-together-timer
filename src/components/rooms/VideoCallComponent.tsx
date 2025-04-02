@@ -10,16 +10,16 @@ interface VideoCallComponentProps {
   isPrivate: boolean;
 }
 
+// Generate a unique peer ID helper function
+const generatePeerId = () => {
+  return Math.random().toString(36).substring(2, 15);
+};
+
 type PeerConnection = {
   peerId: string;
   connection: RTCPeerConnection;
   username: string;
   stream?: MediaStream;
-};
-
-// Generate a unique peer ID helper function
-const generatePeerId = () => {
-  return Math.random().toString(36).substring(2, 15);
 };
 
 const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
@@ -195,7 +195,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
         });
     }
 
-    return peerConnection;
+    return newPeer;
   };
 
   // Handle incoming offer
@@ -203,23 +203,27 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
     if (!localStream) return;
 
     // Find existing peer or create a new one
-    let peerConnection = peersRef.current.find(p => p.peerId === callerId)?.connection;
+    let peerConnection: RTCPeerConnection | undefined;
+    const existingPeer = peersRef.current.find(p => p.peerId === callerId);
     
-    if (!peerConnection) {
-      peerConnection = createPeerConnection(callerId, false, localStream, peerUsername).connection;
+    if (existingPeer) {
+      peerConnection = existingPeer.connection;
+    } else {
+      const newPeer = createPeerConnection(callerId, false, localStream, peerUsername);
+      peerConnection = newPeer.connection;
     }
 
     // Set the remote description from the offer
     peerConnection.setRemoteDescription(new RTCSessionDescription(sdp))
-      .then(() => peerConnection.createAnswer())
-      .then(answer => peerConnection.setLocalDescription(answer))
+      .then(() => peerConnection!.createAnswer())
+      .then(answer => peerConnection!.setLocalDescription(answer))
       .then(() => {
         // Send the answer back
         const answerMessage = {
           type: "answer",
           callerId: myPeerId.current,
           targetPeerId: callerId,
-          sdp: peerConnection.localDescription,
+          sdp: peerConnection!.localDescription,
         };
         
         sendSignal(answerMessage);

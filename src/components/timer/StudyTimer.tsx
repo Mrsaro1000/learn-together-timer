@@ -9,7 +9,6 @@ import { useNavigate } from "react-router-dom";
 import TimerControls from "./TimerControls";
 import TimerDisplay from "./TimerDisplay";
 import { saveStudySession, getUserPreferences } from "@/lib/supabase-api";
-import { useAuth } from "@/context/AuthContext";
 
 type TimerMode = "pomodoro" | "focus";
 
@@ -23,7 +22,6 @@ const StudyTimer = () => {
   const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
   const intervalRef = useRef<number | null>(null);
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   // Get user preferences if available
   useEffect(() => {
@@ -48,7 +46,7 @@ const StudyTimer = () => {
     };
 
     fetchUserPreferences();
-  }, [user]);
+  }, []);
 
   useEffect(() => {
     if (isActive && !isPaused) {
@@ -155,8 +153,6 @@ const StudyTimer = () => {
   };
 
   const saveSession = async (duration: number) => {
-    if (!user) return;
-    
     try {
       await saveStudySession({
         mode,

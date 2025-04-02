@@ -40,8 +40,23 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
   // Initialize local stream
   const initializeMedia = async () => {
     try {
+      // Request camera and microphone permissions explicitly
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
+        .then(() => {
+          toast.success("Camera and microphone access granted");
+        })
+        .catch((err) => {
+          console.error("Permission error:", err);
+          toast.error("Please allow camera and microphone access");
+        });
+        
+      // Get media stream with constraints
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user"
+        },
         audio: true,
       });
       
@@ -53,7 +68,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
       return stream;
     } catch (error) {
       console.error("Error accessing media devices:", error);
-      toast.error("Could not access camera or microphone");
+      toast.error("Could not access camera or microphone. Please check permissions.");
       return null;
     }
   };
@@ -333,7 +348,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
               className="w-full h-full object-cover"
             />
             <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
-              You (Host)
+              You ({username})
             </div>
           </div>
         )}

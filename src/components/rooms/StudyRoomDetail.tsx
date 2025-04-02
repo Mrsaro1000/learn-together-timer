@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Clock, Users, ArrowLeft, Send, Settings } from "lucide-react";
+import { Clock, Users, ArrowLeft, Send, Settings, Copy, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import TaskList from "./TaskList";
@@ -42,6 +42,8 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
   const [isCreator, setIsCreator] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showVideoCall, setShowVideoCall] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [inviteLink, setInviteLink] = useState("");
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +53,10 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     
     if (foundRoom) {
       setRoom(foundRoom);
+      
+      // Generate invite link
+      const baseUrl = window.location.origin;
+      setInviteLink(`${baseUrl}/rooms/${roomId}`);
       
       // Load stored tasks
       const storedTasks = JSON.parse(localStorage.getItem(`studyflow-tasks-${roomId}`) || "[]");
@@ -90,6 +96,12 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
         setChatMessages([newMessage]);
         localStorage.setItem(`studyflow-chat-${roomId}`, JSON.stringify([newMessage]));
       }
+      
+      // Update room participants
+      if (!foundRoom.participants) foundRoom.participants = 0;
+      foundRoom.participants += 1;
+      const updatedRooms = rooms.map((r: any) => (r.id === roomId ? foundRoom : r));
+      localStorage.setItem("studyflow-rooms", JSON.stringify(updatedRooms));
     } else {
       toast.error("Study room not found");
       navigate("/rooms");
@@ -115,6 +127,17 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
           "studyflow-sessions",
           JSON.stringify([...existingSessions, newSession])
         );
+      }
+      
+      // Update room participants on leave
+      if (room) {
+        const rooms = JSON.parse(localStorage.getItem("studyflow-rooms") || "[]");
+        const foundRoom = rooms.find((r: any) => r.id === roomId);
+        if (foundRoom && foundRoom.participants > 0) {
+          foundRoom.participants -= 1;
+          const updatedRooms = rooms.map((r: any) => (r.id === roomId ? foundRoom : r));
+          localStorage.setItem("studyflow-rooms", JSON.stringify(updatedRooms));
+        }
       }
     };
   }, [roomId, navigate]);
@@ -196,6 +219,16 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
   const toggleVideoCall = () => {
     setShowVideoCall(!showVideoCall);
   };
+  
+  const copyInviteLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
+    toast.success("Invite link copied to clipboard!");
+    
+    setTimeout(() => {
+      setCopied(false);
+    }, 3000);
+  };
 
   if (!room) {
     return (
@@ -231,6 +264,26 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
             )}
           </div>
         </div>
+        
+        {room.isPrivate && (
+          <Button
+            variant="outline"
+            className="mr-2 flex items-center gap-1"
+            onClick={copyInviteLink}
+          >
+            {copied ? (
+              <>
+                <CheckCircle className="h-4 w-4" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" />
+                Invite
+              </>
+            )}
+          </Button>
+        )}
         
         {isCreator && (
           <Button 
@@ -288,6 +341,25 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
                 />
                 <label htmlFor="isPrivate">Private Room (Only invited users can join)</label>
               </div>
+              
+              {room.isPrivate && (
+                <div>
+                  <div className="text-sm font-medium mb-1">Invite Link</div>
+                  <div className="flex items-center space-x-2">
+                    <Input value={inviteLink} readOnly className="flex-1" />
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={copyInviteLink}
+                    >
+                      {copied ? <CheckCircle className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Share this link to invite others to this private room
+                  </p>
+                </div>
+              )}
               
               <div className="flex justify-end">
                 <Button 

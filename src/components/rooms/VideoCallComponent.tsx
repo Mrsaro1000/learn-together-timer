@@ -10,7 +10,7 @@ interface VideoCallComponentProps {
   isPrivate: boolean;
 }
 
-// Generate a unique peer ID helper function
+// Generate a unique peer ID helper function - moved to the top
 const generatePeerId = () => {
   return Math.random().toString(36).substring(2, 15);
 };
@@ -32,43 +32,97 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
   const [isCallActive, setIsCallActive] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const peersRef = useRef<PeerConnection[]>([]);
   const roomPrefix = isPrivate ? `private-${roomId}` : `public-${roomId}`;
   const myPeerId = useRef<string>(generatePeerId());
 
-  // Initialize local stream
-  const initializeMedia = async () => {
+  // Check device permissions first
+  const checkMediaPermissions = async () => {
     try {
-      // Request camera and microphone permissions explicitly
-      await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-        .then(() => {
-          toast.success("Camera and microphone access granted");
-        })
-        .catch((err) => {
-          console.error("Permission error:", err);
-          toast.error("Please allow camera and microphone access");
-        });
-        
-      // Get media stream with constraints
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: "user"
-        },
-        audio: true,
-      });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasVideo = devices.some(device => device.kind === 'videoinput');
+      const hasAudio = devices.some(device => device.kind === 'audioinput');
       
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      if (!hasVideo) {
+        toast.warning("No camera detected on your device");
       }
       
-      setLocalStream(stream);
-      return stream;
+      if (!hasAudio) {
+        toast.warning("No microphone detected on your device");
+      }
+      
+      return hasVideo || hasAudio;
+    } catch (error) {
+      console.error("Error checking media devices:", error);
+      toast.error("Unable to access media devices");
+      return false;
+    }
+  };
+
+  // Initialize local stream with proper error handling
+  const initializeMedia = async () => {
+    try {
+      await checkMediaPermissions();
+      
+      // Try to get both video and audio
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        
+        setPermissionsGranted(true);
+        
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = stream;
+          // Force play to ensure video shows
+          localVideoRef.current.play().catch(e => console.error("Could not play local video:", e));
+        }
+        
+        setLocalStream(stream);
+        toast.success("Camera and microphone connected");
+        return stream;
+      } catch (err) {
+        // If that fails, try just audio
+        try {
+          const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
+            video: false,
+            audio: true,
+          });
+          
+          setIsVideoEnabled(false);
+          setPermissionsGranted(true);
+          setLocalStream(audioOnlyStream);
+          toast.success("Microphone connected (no camera)");
+          return audioOnlyStream;
+        } catch (audioErr) {
+          // If that also fails, try just video
+          try {
+            const videoOnlyStream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+            
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = videoOnlyStream;
+              localVideoRef.current.play().catch(e => console.error("Could not play local video:", e));
+            }
+            
+            setIsAudioEnabled(false);
+            setPermissionsGranted(true);
+            setLocalStream(videoOnlyStream);
+            toast.success("Camera connected (no microphone)");
+            return videoOnlyStream;
+          } catch (videoErr) {
+            throw new Error("Could not access any media devices");
+          }
+        }
+      }
     } catch (error) {
       console.error("Error accessing media devices:", error);
-      toast.error("Could not access camera or microphone. Please check permissions.");
+      toast.error("Could not access camera or microphone. Please check permissions in your browser settings.");
       return null;
     }
   };
@@ -76,7 +130,10 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
   // Join the call
   const joinCall = async () => {
     const stream = await initializeMedia();
-    if (!stream) return;
+    if (!stream) {
+      toast.error("Cannot join call without camera or microphone access");
+      return;
+    }
     
     setIsCallActive(true);
     
@@ -315,6 +372,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
         track.enabled = !isAudioEnabled;
       });
       setIsAudioEnabled(!isAudioEnabled);
+      toast.success(isAudioEnabled ? "Microphone muted" : "Microphone unmuted");
     }
   };
 
@@ -325,6 +383,7 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
         track.enabled = !isVideoEnabled;
       });
       setIsVideoEnabled(!isVideoEnabled);
+      toast.success(isVideoEnabled ? "Camera turned off" : "Camera turned on");
     }
   };
 
@@ -345,10 +404,18 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
               autoPlay
               playsInline
               muted
-              className="w-full h-full object-cover"
+              className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
             />
+            {!isVideoEnabled && (
+              <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white">
+                <div className="text-center">
+                  <VideoOff className="h-10 w-10 mx-auto mb-2" />
+                  <p>Camera Off</p>
+                </div>
+              </div>
+            )}
             <div className="absolute bottom-2 left-2 bg-black bg-opacity-50 px-2 py-1 rounded text-white text-xs">
-              You ({username})
+              You ({username}) {!isAudioEnabled && <MicOff className="h-3 w-3 inline ml-1" />}
             </div>
           </div>
         )}
@@ -429,6 +496,8 @@ const PeerVideo: React.FC<PeerVideoProps> = ({ stream }) => {
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.srcObject = stream;
+      // Force play to ensure video shows
+      videoRef.current.play().catch(e => console.error("Could not play peer video:", e));
     }
   }, [stream]);
   

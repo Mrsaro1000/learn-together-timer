@@ -1,11 +1,10 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Clock, Users, ArrowLeft, Send, Settings, Copy, CheckCircle } from "lucide-react";
+import { Clock, Users, ArrowLeft, Send, Settings, Copy, CheckCircle, ShieldAlert } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import TaskList from "./TaskList";
@@ -45,6 +44,7 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
   const [copied, setCopied] = useState(false);
   const [inviteLink, setInviteLink] = useState("");
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
     // In a real app, we would fetch the room from a backend
@@ -52,11 +52,43 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     const foundRoom = rooms.find((r: any) => r.id === roomId);
     
     if (foundRoom) {
+      // Check if room is private and if the current user has access
+      if (foundRoom.isPrivate) {
+        const roomAccess = JSON.parse(localStorage.getItem(`studyflow-access-${roomId}`) || "[]");
+        const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "anonymous-user"}');
+        const userHasAccess = roomAccess.includes(userData.id) || foundRoom.creatorId === userData.id;
+        
+        if (!userHasAccess) {
+          const hasInviteLink = localStorage.getItem(`studyflow-invite-${roomId}`);
+          if (!hasInviteLink) {
+            setAccessDenied(true);
+            toast.error("You don't have access to this private room");
+            return;
+          }
+        }
+      }
+      
       setRoom(foundRoom);
       
       // Generate invite link
       const baseUrl = window.location.origin;
-      setInviteLink(`${baseUrl}/rooms/${roomId}`);
+      const inviteToken = btoa(`room-invite-${roomId}-${Date.now()}`);
+      setInviteLink(`${baseUrl}/rooms/${roomId}?token=${inviteToken}`);
+      
+      // Store the current user's access to this room
+      const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "anonymous-user"}');
+      const roomAccess = JSON.parse(localStorage.getItem(`studyflow-access-${roomId}`) || "[]");
+      if (!roomAccess.includes(userData.id)) {
+        roomAccess.push(userData.id);
+        localStorage.setItem(`studyflow-access-${roomId}`, JSON.stringify(roomAccess));
+      }
+      
+      // If coming via invite link, store that info
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      if (token) {
+        localStorage.setItem(`studyflow-invite-${roomId}`, token);
+      }
       
       // Load stored tasks
       const storedTasks = JSON.parse(localStorage.getItem(`studyflow-tasks-${roomId}`) || "[]");
@@ -229,6 +261,33 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
       setCopied(false);
     }, 3000);
   };
+
+  if (accessDenied) {
+    return (
+      <div className="container mx-auto px-4 py-8 max-w-md">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-xl flex items-center gap-2">
+              <ShieldAlert className="text-red-500" />
+              Access Denied
+            </CardTitle>
+            <CardDescription>
+              This is a private study room, and you don't have access to it.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="mb-4">You need an invitation from the room creator to join this private room.</p>
+            <Button
+              className="w-full"
+              onClick={() => navigate("/rooms")}
+            >
+              Go Back to Study Rooms
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (!room) {
     return (

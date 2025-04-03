@@ -46,16 +46,18 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
+  const getUserData = () => {
+    return JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "anonymous-user", "name": "Anonymous"}');
+  };
+
   useEffect(() => {
-    // In a real app, we would fetch the room from a backend
     const rooms = JSON.parse(localStorage.getItem("studyflow-rooms") || "[]");
     const foundRoom = rooms.find((r: any) => r.id === roomId);
     
     if (foundRoom) {
-      // Check if room is private and if the current user has access
       if (foundRoom.isPrivate) {
         const roomAccess = JSON.parse(localStorage.getItem(`studyflow-access-${roomId}`) || "[]");
-        const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "anonymous-user"}');
+        const userData = getUserData();
         const userHasAccess = roomAccess.includes(userData.id) || foundRoom.creatorId === userData.id;
         
         if (!userHasAccess) {
@@ -70,50 +72,41 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
       
       setRoom(foundRoom);
       
-      // Generate invite link
       const baseUrl = window.location.origin;
       const inviteToken = btoa(`room-invite-${roomId}-${Date.now()}`);
       setInviteLink(`${baseUrl}/rooms/${roomId}?token=${inviteToken}`);
       
-      // Store the current user's access to this room
-      const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "anonymous-user"}');
+      const userData = getUserData();
       const roomAccess = JSON.parse(localStorage.getItem(`studyflow-access-${roomId}`) || "[]");
       if (!roomAccess.includes(userData.id)) {
         roomAccess.push(userData.id);
         localStorage.setItem(`studyflow-access-${roomId}`, JSON.stringify(roomAccess));
       }
       
-      // If coming via invite link, store that info
       const urlParams = new URLSearchParams(window.location.search);
       const token = urlParams.get('token');
       if (token) {
         localStorage.setItem(`studyflow-invite-${roomId}`, token);
       }
       
-      // Load stored tasks
       const storedTasks = JSON.parse(localStorage.getItem(`studyflow-tasks-${roomId}`) || "[]");
       setTasks(storedTasks);
       
-      // Load stored chat messages
       const storedMessages = JSON.parse(localStorage.getItem(`studyflow-chat-${roomId}`) || "[]");
       setChatMessages(storedMessages.map((msg: any) => ({
         ...msg,
         timestamp: new Date(msg.timestamp)
       })));
       
-      // Start a timer to track time spent in the room
       const timer = setInterval(() => {
         setRoomTime((prev) => prev + 1);
       }, 1000);
       
       setActiveTimer(timer);
       
-      // Check if user is the creator
-      const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"id": "anonymous-user"}');
       const isRoomCreator = foundRoom.creatorId === userData.id;
       setIsCreator(isRoomCreator);
       
-      // Add a system message if there are no messages
       if (storedMessages.length === 0) {
         const userName = userData.name || "Anonymous";
         
@@ -129,7 +122,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
         localStorage.setItem(`studyflow-chat-${roomId}`, JSON.stringify([newMessage]));
       }
       
-      // Update room participants
       if (!foundRoom.participants) foundRoom.participants = 0;
       foundRoom.participants += 1;
       const updatedRooms = rooms.map((r: any) => (r.id === roomId ? foundRoom : r));
@@ -144,7 +136,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
         clearInterval(activeTimer);
       }
       
-      // In a real app, this would update session time on the server
       if (roomTime > 0) {
         const existingSessions = JSON.parse(localStorage.getItem("studyflow-sessions") || "[]");
         const newSession = {
@@ -161,7 +152,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
         );
       }
       
-      // Update room participants on leave
       if (room) {
         const rooms = JSON.parse(localStorage.getItem("studyflow-rooms") || "[]");
         const foundRoom = rooms.find((r: any) => r.id === roomId);
@@ -174,7 +164,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     };
   }, [roomId, navigate]);
 
-  // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -195,7 +184,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     setTasks(updatedTasks);
     setNewTask("");
     
-    // Store tasks in localStorage
     localStorage.setItem(`studyflow-tasks-${roomId}`, JSON.stringify(updatedTasks));
   };
 
@@ -206,7 +194,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     
     setTasks(updatedTasks);
     
-    // Update stored tasks
     localStorage.setItem(`studyflow-tasks-${roomId}`, JSON.stringify(updatedTasks));
   };
 
@@ -214,7 +201,7 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
     
-    const userData = JSON.parse(localStorage.getItem("studyflow-user") || '{"name": "Anonymous"}');
+    const userData = getUserData();
     const userName = userData.name || "Anonymous";
     const userInitials = userName
       .split(" ")
@@ -234,12 +221,10 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
     setChatMessages(updatedMessages);
     setNewMessage("");
     
-    // Store chat messages in localStorage
     localStorage.setItem(`studyflow-chat-${roomId}`, JSON.stringify(updatedMessages));
   };
 
   const handleRoomUpdate = () => {
-    // In a real app, this would update the room on the server
     const rooms = JSON.parse(localStorage.getItem("studyflow-rooms") || "[]");
     const updatedRooms = rooms.map((r: any) => (r.id === roomId ? room : r));
     
@@ -442,7 +427,7 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
           <CardContent>
             <VideoCallComponent 
               roomId={roomId} 
-              username={JSON.parse(localStorage.getItem("studyflow-user") || '{"name": "Anonymous"}').name || "Anonymous"}
+              username={getUserData().name || "Anonymous"}
               isPrivate={room.isPrivate}
             />
           </CardContent>
@@ -450,7 +435,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
       )}
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Tasks Section */}
         <div className="col-span-1">
           <Card>
             <CardHeader className="pb-3">
@@ -479,7 +463,6 @@ const StudyRoomDetail = ({ roomId }: StudyRoomDetailProps) => {
           </Card>
         </div>
         
-        {/* Chat Section */}
         <div className="col-span-1 lg:col-span-2">
           <Card className="h-full flex flex-col">
             <CardHeader className="pb-3">

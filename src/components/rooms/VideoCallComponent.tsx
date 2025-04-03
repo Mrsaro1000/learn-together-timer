@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Mic, MicOff, Video, VideoOff, Phone, PhoneOff } from "lucide-react";
@@ -74,14 +73,19 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
         });
         
         setPermissionsGranted(true);
+        setLocalStream(stream);
         
+        // Ensure video is showing correctly
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
-          // Force play to ensure video shows
-          localVideoRef.current.play().catch(e => console.error("Could not play local video:", e));
+          localVideoRef.current.play().catch(e => {
+            console.error("Could not play local video:", e);
+            toast.error("Could not display video. Please refresh and try again.");
+          });
+        } else {
+          console.error("Video reference is null");
         }
         
-        setLocalStream(stream);
         toast.success("Camera and microphone connected");
         return stream;
       } catch (err) {
@@ -95,6 +99,17 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
           setIsVideoEnabled(false);
           setPermissionsGranted(true);
           setLocalStream(audioOnlyStream);
+          
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = audioOnlyStream;
+            localVideoRef.current.play().catch(e => {
+              console.error("Could not play local video:", e);
+              toast.error("Could not display video. Please refresh.");
+            });
+          } else {
+            console.error("Video reference is null for audio-only stream");
+          }
+          
           toast.success("Microphone connected (no camera)");
           return audioOnlyStream;
         } catch (audioErr) {
@@ -105,14 +120,20 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
               audio: false,
             });
             
-            if (localVideoRef.current) {
-              localVideoRef.current.srcObject = videoOnlyStream;
-              localVideoRef.current.play().catch(e => console.error("Could not play local video:", e));
-            }
-            
             setIsAudioEnabled(false);
             setPermissionsGranted(true);
             setLocalStream(videoOnlyStream);
+            
+            if (localVideoRef.current) {
+              localVideoRef.current.srcObject = videoOnlyStream;
+              localVideoRef.current.play().catch(e => {
+                console.error("Could not play local video:", e);
+                toast.error("Could not display video. Please refresh.");
+              });
+            } else {
+              console.error("Video reference is null for video-only stream");
+            }
+            
             toast.success("Camera connected (no microphone)");
             return videoOnlyStream;
           } catch (videoErr) {
@@ -129,10 +150,24 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
 
   // Join the call
   const joinCall = async () => {
+    console.log("Joining call...");
     const stream = await initializeMedia();
     if (!stream) {
       toast.error("Cannot join call without camera or microphone access");
       return;
+    }
+    
+    // Ensure video is displayed after joining
+    if (localVideoRef.current) {
+      console.log("Setting video source after joining");
+      localVideoRef.current.srcObject = stream;
+      try {
+        await localVideoRef.current.play();
+      } catch (e) {
+        console.error("Could not play local video after joining:", e);
+      }
+    } else {
+      console.error("Video reference is null when joining call");
     }
     
     setIsCallActive(true);
@@ -387,6 +422,17 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
     }
   };
 
+  // Fix: Make sure the video is displayed correctly when component updates
+  useEffect(() => {
+    if (isCallActive && localStream && localVideoRef.current) {
+      console.log("Setting video source in update effect");
+      localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play().catch(e => {
+        console.error("Could not play local video in update effect:", e);
+      });
+    }
+  }, [isCallActive, localStream]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -480,6 +526,10 @@ const VideoCallComponent: React.FC<VideoCallComponentProps> = ({
             </Button>
           </>
         )}
+      </div>
+      
+      <div className="mt-2 text-xs text-gray-500">
+        <p>Tip: If your camera doesn't display, check your browser's camera permissions and try refreshing.</p>
       </div>
     </div>
   );
